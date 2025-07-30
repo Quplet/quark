@@ -1,0 +1,8 @@
+# git
+.git/
+
+# Cmake stuff
+.cache/
+
+# Build dir
+build/
