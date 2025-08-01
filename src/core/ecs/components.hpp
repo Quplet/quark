@@ -17,14 +17,14 @@ struct Entity {
     return this->id == other.id;
   }
 };
-  
+
 }
 
 namespace std {
-    template <>
-    struct hash<quark::Entity> {
-        std::size_t operator()(const quark::Entity& entity) const {
-            return std::hash<std::size_t>{}(entity.id);
-        }
-    };
+  template <>
+  struct hash<quark::Entity> {
+    std::size_t operator()(const quark::Entity& entity) const {
+      return std::hash<std::size_t>{}(entity.id);
+    }
+  };
 }
