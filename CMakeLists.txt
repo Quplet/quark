@@ -41,7 +41,7 @@ FetchContent_MakeAvailable( sdl3 spdlog )
 add_library(
   quark STATIC
   src/quark.cpp
-  src/core/ecs/ecs.cpp
+  src/core/ecs/ecs-core.cpp
 )
 set_target_properties( quark PROPERTIES CXX_STANDARD 20 )
 target_include_directories( quark PUBLIC src )

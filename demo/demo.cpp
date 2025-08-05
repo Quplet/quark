@@ -14,7 +14,7 @@ void test_update(Point& point) {
 int main() {
   auto engine = Quark();
    
-  engine.add_system<Point>(std::function<void(Point&)>(test_update), ECS::SystemType::UPDATE);
+  engine.add_system(std::function<void(Point&)>(test_update), SystemType::UPDATE);
 
   engine.run();
   

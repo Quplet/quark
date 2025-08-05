@@ -3,7 +3,6 @@
 #include <any>
 #include <cassert>
 #include <cstddef>
-#include <memory>
 #include <typeindex>
 #include <vector>
 #include <functional>
@@ -12,6 +11,7 @@
 #include <spdlog/spdlog.h>
 
 #include "components.hpp"
+#include "core/ecs/resources/resource.hpp"
 
 namespace quark {
 
@@ -21,70 +21,26 @@ namespace quark {
 template<typename R>
 using OptionalRef = std::optional<std::reference_wrapper<R>>;
 
-class ECS {
-public:
-  enum SystemType {
-    UPDATE,
-    FIXED_UPDATE
-  };
-  
+class ECS: public Resource {
 private:
-  friend class Quark;
-  
-  // Private constructor as we don't want users making their
-  // own ECS instances.
-  ECS() = default;
-
-  class ISystem {
-  public:
-    std::vector<std::type_index> m_types;
-
-    virtual void _call(ECS& ecs, const Entity entity) = 0;
-  };
-
-  
-  template<Component... Ts>
-  class System : public ISystem {
-  private:
-    std::function<void(Ts&...)> m_callback;
-
-  public:
-    explicit System(std::function<void(Ts&...)> callback)
-      : m_callback(std::move(callback)) {
-        this->m_types = { typeid(Ts) ... };
-    }
-
-    void _call(ECS& ecs, const Entity entity) override {
-      m_callback(*ecs.get_component<Ts>(entity) ...);
-    }
-  };
-
+  friend class ECSCore;
   
   std::size_t _next_entity_id = 0;
 
   std::unordered_map<std::type_index, std::unordered_map<Entity, std::any>> m_component_map;
-  std::vector<std::unique_ptr<ISystem>> m_update_callbacks;
-  std::vector<std::unique_ptr<ISystem>> m_update_fixed_callbacks;
+  std::vector<std::function<void(ECS&)>> m_commands;
 
-  Entity _create_entity();
-  
-  void _update();
-  void _fixed_update();
+  Entity _create_entity() {
+    return Entity {
+      .active = true,
+      .id = this->_next_entity_id++
+    };
+    
+  }
 
-  void _run_ecs_update(std::vector<std::unique_ptr<ISystem>>& callbacks);
-
-  template<Component ... Ts>
-  void _add_system_callback(std::function<void(Ts&...)> callback, SystemType system_type) {
-    switch (system_type) {
-    case SystemType::UPDATE:
-      this->m_update_callbacks.push_back(std::make_unique<System<Ts...>>(std::move(callback)));
-      break;
-    case SystemType::FIXED_UPDATE:
-      this->m_update_fixed_callbacks.push_back(std::make_unique<System<Ts...>>(std::move(callback)));
-      break;
-    default:
-      assert(false && "Unhandled system_type in ECS::_add_system_callback(...)");
-      break;
+  void _update() override {
+    for (auto command : this->m_commands) {
+      command(*this);
     }
   }
 
@@ -93,8 +49,12 @@ public:
   Entity create_entity(Ts ... components) {
     Entity new_entity = this->_create_entity();
 
-    this->add_components(new_entity, components...);
+    auto command = [new_entity, components...](ECS& ecs) {
+      ecs.add_components(new_entity, components...);
+    };
 
+    this->m_commands.push_back(command);
+   
     return new_entity;
   }
 
