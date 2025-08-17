@@ -7,14 +7,14 @@ struct Point {
   int x, y;
 };
 
-void test_update(Point& point) {
+void test_update(ECS& ecs, Point& point) {
   // do something
 }
 
 int main() {
   auto engine = Quark();
    
-  engine.add_system(std::function<void(Point&)>(test_update), SystemType::UPDATE);
+  engine.add_system(std::function<void(ECS&, Point&)>(test_update), SystemType::UPDATE);
 
   engine.run();
   

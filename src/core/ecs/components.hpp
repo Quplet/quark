@@ -11,7 +11,7 @@ concept Component = std::is_copy_constructible<T>::value;
 
 struct Entity {
   bool active = true;
-  std::size_t id;
+  const std::size_t id;
 
   bool operator==(const Entity& other) const {
     return this->id == other.id;

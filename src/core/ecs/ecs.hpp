@@ -21,6 +21,7 @@ namespace quark {
 template<typename R>
 using OptionalRef = std::optional<std::reference_wrapper<R>>;
 
+
 class ECS: public Resource {
 private:
   friend class ECSCore;
@@ -43,7 +44,7 @@ private:
       command(*this);
     }
   }
-
+  
 public:
   template<Component ... Ts>
   Entity create_entity(Ts ... components) {

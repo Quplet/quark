@@ -23,9 +23,10 @@ private:
   
   class ISystem {
   public:
-    std::vector<std::type_index> m_types;
+    std::vector<std::type_index> m_components;
+    std::vector<std::type_index> m_resources;
 
-    virtual void _call(ECS& ecs, const Entity entity) = 0;
+    virtual void _call(ECSCore& ecs, const Entity entity) = 0;
   };
 
   template<Component... Ts>
@@ -36,11 +37,17 @@ private:
   public:
     explicit System(std::function<void(Ts&...)> callback)
       : m_callback(std::move(callback)) {
-        this->m_types = { typeid(Ts) ... };
+      ([&] {
+        if constexpr (std::is_same_v<Ts, Resource>) {
+          this->m_resources.push_back(typeid(Ts));
+        } else {
+          this->m_components.push_back(typeid(Ts));
+        }
+      }(), ...);
     }
 
-    void _call(ECS& ecs, const Entity entity) override {
-      m_callback(*ecs.get_component<Ts>(entity) ...);
+    void _call(ECSCore& ecs, const Entity entity) override {
+      m_callback(*ecs._get_comp_or_res<Ts>(entity) ...);
     }
 
     ~System() = default;
@@ -88,6 +95,20 @@ private:
     }
 
     return static_cast<R&>(*this->m_resource_map[typeid(R)]);
+  }
+
+  template<isResource R>
+  bool _has_resource() {
+    return this->m_resource_map.contains(typeid(R));
+  } 
+  
+  template<Component T>
+  OptionalRef<T> _get_comp_or_res(const Entity entity) {
+    if constexpr (std::is_same_v<T, Resource>) {
+      return this->m_resource_map[typeid(T)];
+    }
+      
+    return (*this->_get_resource<ECS>()).get().get_component<T>(entity);
   }
 };
 
