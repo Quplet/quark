@@ -38,7 +38,7 @@ private:
     explicit System(std::function<void(Ts&...)> callback)
       : m_callback(std::move(callback)) {
       ([&] {
-        if constexpr (std::is_same_v<Ts, Resource>) {
+        if constexpr (std::is_base_of_v<Ts, Resource>) {
           this->m_resources.push_back(typeid(Ts));
         } else {
           this->m_components.push_back(typeid(Ts));
@@ -104,7 +104,7 @@ private:
   
   template<Component T>
   OptionalRef<T> _get_comp_or_res(const Entity entity) {
-    if constexpr (std::is_same_v<T, Resource>) {
+    if constexpr (std::is_base_of_v<T, Resource>) {
       return this->m_resource_map[typeid(T)];
     }
       
