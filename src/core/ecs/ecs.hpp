@@ -24,69 +24,74 @@ using OptionalRef = std::optional<std::reference_wrapper<R>>;
 
 class ECS: public Resource {
 private:
-  friend class ECSCore;
-  
-  std::size_t _next_entity_id = 0;
+    friend class ECSCore;
 
-  std::unordered_map<std::type_index, std::unordered_map<Entity, std::any>> m_component_map;
-  std::vector<std::function<void(ECS&)>> m_commands;
+    std::size_t _next_entity_id = 0;
 
-  Entity _create_entity() {
-    return Entity {
-      .active = true,
-      .id = this->_next_entity_id++
-    };
-    
-  }
+    std::unordered_map<std::type_index, std::unordered_map<Entity, std::any>> m_component_map;
+    std::vector<std::function<void(ECS&)>> m_commands;
 
-  void _update() override {
-    for (auto command : this->m_commands) {
-      command(*this);
-    }
-  }
-  
-public:
-  template<Component ... Ts>
-  Entity create_entity(Ts ... components) {
-    Entity new_entity = this->_create_entity();
-
-    auto command = [new_entity, components...](ECS& ecs) {
-      ecs.add_components(new_entity, components...);
-    };
-
-    this->m_commands.push_back(command);
-   
-    return new_entity;
-  }
-
-  template<Component T>
-  void add_component(Entity entity, T component) {
-    this->m_component_map[typeid(T)][entity] = std::move(component);
-  }
-
-  template<Component ... Ts>
-  void add_components(Entity entity, Ts ... components) {
-    (this->add_component(entity, components), ... );
-  }
-
-  template<Component T>
-  OptionalRef<T> get_component(const Entity entity) {
-    if (!this->has_component<T>(entity)) {
-      return std::nullopt;
+    Entity _create_entity() {
+        return Entity {
+            .id = this->_next_entity_id++,
+            .active = true,
+        };
     }
 
-    return std::any_cast<T&>(this->m_component_map[typeid(T)].at(entity));
-  }
+    void _update() override {
+        for (auto command : this->m_commands) {
+            command(*this);
+        }
 
-  template<Component T>
-  bool has_component(const Entity entity) {
-    return this->m_component_map[typeid(T)].contains(entity);
-  }
+        this->m_commands.clear();
+    }
 
-  template<Component T>
-  bool remove_component(const Entity entity) {
-    return this->m_component_map[typeid(T)].erase(entity) > 0;
-  }
+    public:
+    template<Component ... Ts>
+    Entity create_entity(Ts ... components) {
+        Entity new_entity = this->_create_entity();
+
+        auto command = [new_entity, components...](ECS& ecs) {
+            ecs.add_components(new_entity, components...);
+        };
+
+        this->m_commands.push_back(std::move(command));
+
+        return new_entity;
+    }
+
+    template<Component T>
+    void add_component(Entity entity, T component) {
+        this->m_component_map[typeid(T)][entity] = std::move(component);
+    }
+
+    template<Component ... Ts>
+    void add_components(Entity entity, Ts ... components) {
+        (this->add_component(entity, components), ... );
+    }
+
+    template<Component T>
+    T& get_component(const Entity entity) {
+        assert(this->m_component_map[typeid(T)].contains(entity) && "Entity doesn't have that component!");
+        
+        return std::any_cast<T&>(this->m_component_map[typeid(T)].at(entity));
+    }
+
+    template<Component T>
+    bool has_component(const Entity entity) {
+        return this->m_component_map[typeid(T)].contains(entity);
+    }
+
+    template<Component T>
+    void remove_component(const Entity entity) {
+        // return this->m_component_map[typeid(T)].erase(entity) > 0;
+        
+        auto command = [entity](ECS& ecs) {
+            ecs.remove_component<T>(entity);  
+        };
+
+        this->m_commands.push_back(std::move(command));
+    }
 };
-  
+
 }

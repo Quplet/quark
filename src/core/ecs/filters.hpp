@@ -21,4 +21,4 @@ struct Without {
     }
 };
 
-} /* namespace QuEngine */
+} /* namespace Quark */

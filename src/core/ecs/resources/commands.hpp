@@ -11,16 +11,16 @@ namespace quark {
 
 class Commands : public Resource {
 private:
-  std::vector<std::function<void(ECS&)>> m_commands;
+    std::vector<std::function<void(ECS&)>> m_commands;
 
-  template<Component ... Ts>
-  void create_entity(Ts ... components) {
-    auto create_func = [components...](ECS& ecs) {
-      ecs.create_entity(components...);
-    };
+    template<Component ... Ts>
+    void create_entity(Ts ... components) {
+        auto create_func = [components...](ECS& ecs) {
+            ecs.create_entity(components...);
+        };
 
-    m_commands.push_back(std::move(create_func));
-  }
+        m_commands.push_back(std::move(create_func));
+    }
 };
-  
+
 }

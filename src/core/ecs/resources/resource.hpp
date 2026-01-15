@@ -6,9 +6,9 @@ namespace quark {
 
 class Resource {
 private:
-  friend class ECSCore;
-  
-  virtual void _update() = 0;
+    friend class ECSCore;
+
+    virtual void _update() = 0;
 };
 
 template<typename R>

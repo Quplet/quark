@@ -2,8 +2,8 @@
 
 #include <cassert>
 #include <memory>
+// #include <stdexcept>
 #include <optional>
-#include <stdexcept>
 #include <typeindex>
 
 #include "core/ecs/resources/resource.hpp"
@@ -13,103 +13,108 @@
 namespace quark {
 
 enum SystemType {
-  UPDATE,
-  FIXED_UPDATE
+    STARTUP,
+    UPDATE,
+    FIXED_UPDATE
 };
 
 class ECSCore {
 private:
-  friend class Quark;
-  
-  class ISystem {
-  public:
-    std::vector<std::type_index> m_components;
-    std::vector<std::type_index> m_resources;
+    friend class Quark;
 
-    virtual void _call(ECSCore& ecs, const Entity entity) = 0;
-  };
+    class ISystem {
+    public:
+        std::vector<std::type_index> m_components;
+        std::vector<std::type_index> m_resources;
 
-  template<Component... Ts>
-  class System : public ISystem {
-  private:
-    std::function<void(Ts&...)> m_callback;
+        virtual void _call(ECSCore& ecs, std::optional<Entity>) = 0;
+        virtual ~ISystem() = default;
+    };
 
-  public:
-    explicit System(std::function<void(Ts&...)> callback)
-      : m_callback(std::move(callback)) {
-      ([&] {
-        if constexpr (std::is_base_of_v<Resource, Ts>) {
-          this->m_resources.push_back(typeid(Ts));
-        } else {
-          this->m_components.push_back(typeid(Ts));
+    template<Component... Ts>
+    class System : public ISystem {
+    private:
+        std::function<void(Ts&...)> m_callback;
+
+    public:
+        explicit System(std::function<void(Ts&...)> callback)
+        : m_callback(std::move(callback)) {
+            ([&] {
+                if constexpr (std::is_base_of_v<Resource, Ts>) {
+                    this->m_resources.push_back(typeid(Ts));
+                } else {
+                    this->m_components.push_back(typeid(Ts));
+                }
+            }(), ...);
         }
-      }(), ...);
+
+        void _call(ECSCore& ecs, std::optional<Entity> entity) override {
+            m_callback(ecs._get_comp_or_res<Ts>(entity) ...);
+        }
+
+        ~System() = default;
+    };
+
+    std::unordered_map<std::type_index, std::unique_ptr<Resource>> m_resource_map;
+    std::vector<std::unique_ptr<ISystem>> m_startup_callbacks;
+    std::vector<std::unique_ptr<ISystem>> m_update_callbacks;
+    std::vector<std::unique_ptr<ISystem>> m_update_fixed_callbacks;
+
+    ECSCore() {
+        // Insert default resources needed by the engine
+        m_resource_map[typeid(ECS)] = std::make_unique<ECS>();
+        m_resource_map[typeid(Time)] = std::make_unique<Time>();
     }
 
-    void _call(ECSCore& ecs, const Entity entity) override {
-      m_callback(*ecs._get_comp_or_res<Ts>(entity) ...);
+    void _ecs_update(SystemType system_type);
+
+    // Implemented here for inlining purposes
+    std::vector<std::unique_ptr<ISystem>>& _get_type_callbacks(SystemType system_type) {
+        switch (system_type) {
+        case SystemType::STARTUP:
+            return this->m_startup_callbacks;
+        case SystemType::UPDATE:
+            return this->m_update_callbacks;
+        case SystemType::FIXED_UPDATE:
+            return this->m_update_fixed_callbacks;
+        default:
+            // If I was using C++23 I could use std::unreachable()
+            __builtin_unreachable();
+        }
     }
 
-    ~System() = default;
-  };
-
-  std::unordered_map<std::type_index, std::unique_ptr<Resource>> m_resource_map;
-  std::vector<std::unique_ptr<ISystem>> m_update_callbacks;
-  std::vector<std::unique_ptr<ISystem>> m_update_fixed_callbacks;
-
-  ECSCore() {
-    // Insert default resources needed by the engine
-    m_resource_map[typeid(ECS)] = std::make_unique<ECS>();
-    m_resource_map[typeid(Time)] = std::make_unique<Time>();
-  }
-  
-  void _ecs_update(SystemType system_type);
-
-  std::vector<std::unique_ptr<ISystem>>& _get_type_callbacks(SystemType system_type) {
-    switch (system_type) {
-    case SystemType::UPDATE:
-      return this->m_update_callbacks;
-    case SystemType::FIXED_UPDATE:
-      return this->m_update_fixed_callbacks;
-    default:
-      assert(false && "Unhandled system_type in ECS::_add_system_callback(...)");
-      throw std::invalid_argument("Unhandled system_type in ECS::_add_system_callback(...)");
-    }
-  }
-  
-  template<Component ... Ts>
-  void _add_system_callback(std::function<void(Ts&...)> callback, SystemType system_type) {
-    this->_get_type_callbacks(system_type)
-      .push_back(std::make_unique<System<Ts...>>(std::move(callback)));
-  }
-
-  template<isResource R>
-  void _add_resource(std::unique_ptr<R> res_ptr) {
-    this->m_resource_map[typeid(R)] = std::move(res_ptr);
-  }
-
-  template<isResource R>
-  OptionalRef<R> _get_resource() {
-    if (!this->m_resource_map.contains(typeid(R))) {
-      return std::nullopt;
+    template<Component ... Ts>
+    void _add_system_callback(std::function<void(Ts&...)> callback, SystemType system_type) {
+        this->_get_type_callbacks(system_type)
+            .push_back(std::make_unique<System<Ts...>>(std::move(callback)));
     }
 
-    return static_cast<R&>(*this->m_resource_map[typeid(R)]);
-  }
-
-  template<isResource R>
-  bool _has_resource() {
-    return this->m_resource_map.contains(typeid(R));
-  } 
-  
-  template<Component T>
-  OptionalRef<T> _get_comp_or_res(const Entity entity) {
-    if constexpr (std::is_base_of_v<Resource, T>) {
-      return this->m_resource_map[typeid(T)];
+    template<isResource R>
+    void _add_resource(std::unique_ptr<R> res_ptr) {
+        this->m_resource_map[typeid(R)] = std::move(res_ptr);
     }
-      
-    return (*this->_get_resource<ECS>()).get().get_component<T>(entity);
-  }
+
+    template<isResource R>
+    R& _get_resource() {
+        assert(this->m_resource_map.contains(typeid(R)) && "Resource not in system!");
+        
+        return static_cast<R&>(*this->m_resource_map[typeid(R)]);
+    }
+
+    template<isResource R>
+    bool _has_resource() {
+        return this->m_resource_map.contains(typeid(R));
+    }
+
+    template<Component T>
+    T& _get_comp_or_res(std::optional<Entity> entity) {
+        if constexpr (std::is_base_of_v<Resource, T>) {
+            assert(this->m_resource_map.contains(typeid(T)) && "Resource doesn't exist!");
+            return static_cast<T&>(*this->m_resource_map[typeid(T)]);
+        } else {
+            return this->_get_resource<ECS>().get_component<T>(*entity);
+        }
+    }
 };
 
 }
