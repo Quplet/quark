@@ -73,7 +73,7 @@ private:
     template<Component T>
     T& get_component(const Entity entity) {
         assert(this->m_component_map[typeid(T)].contains(entity) && "Entity doesn't have that component!");
-        
+
         return std::any_cast<T&>(this->m_component_map[typeid(T)].at(entity));
     }
 
@@ -85,9 +85,9 @@ private:
     template<Component T>
     void remove_component(const Entity entity) {
         // return this->m_component_map[typeid(T)].erase(entity) > 0;
-        
+
         auto command = [entity](ECS& ecs) {
-            ecs.remove_component<T>(entity);  
+            ecs.m_component_map[typeid(T)].erase(entity);
         };
 
         this->m_commands.push_back(std::move(command));
