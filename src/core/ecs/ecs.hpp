@@ -92,6 +92,16 @@ private:
 
         this->m_commands.push_back(std::move(command));
     }
+
+    void remove_entity(Entity entity) {
+        auto command = [entity](ECS& ecs) {
+            for (auto& component_map : ecs.m_component_map) {
+                component_map.second.erase(entity);
+            }
+        };
+
+        this->m_commands.push_back(std::move(command));
+    }
 };
 
 }
