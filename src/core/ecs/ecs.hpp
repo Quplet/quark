@@ -46,13 +46,18 @@ private:
         this->m_commands.clear();
     }
 
+    template<Component T>
+    void _add_component(Entity entity, T component) {
+        this->m_component_map[typeid(T)][entity] = std::move(component);
+    }
+
     public:
     template<Component ... Ts>
     Entity create_entity(Ts ... components) {
         Entity new_entity = this->_create_entity();
 
         auto command = [new_entity, components...](ECS& ecs) {
-            ecs.add_components(new_entity, components...);
+            (ecs._add_component(new_entity, std::move(components)), ...);
         };
 
         this->m_commands.push_back(std::move(command));
@@ -62,12 +67,20 @@ private:
 
     template<Component T>
     void add_component(Entity entity, T component) {
-        this->m_component_map[typeid(T)][entity] = std::move(component);
+        auto command = [entity, component](ECS& ecs) {
+            ecs._add_component(entity, std::move(component));
+        };
+
+        this->m_commands.push_back(std::move(command));
     }
 
     template<Component ... Ts>
     void add_components(Entity entity, Ts ... components) {
-        (this->add_component(entity, components), ... );
+        auto command = [entity, components...](ECS& ecs) {
+            (ecs._add_component(entity, std::move(components)), ...);
+        };
+
+        this->m_commands.push_back(std::move(command));
     }
 
     template<Component T>
